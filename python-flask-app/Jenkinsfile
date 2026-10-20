@@ -4,50 +4,69 @@ pipeline {
         label 'python-agent'
     }
 
+    options {
+        skipDefaultCheckout(true)
+    }
+
     stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Build') {
             steps {
-                echo 'Installing Python dependencies...'
-                sh 'python --version'
-                sh 'python -m pip install --user -r requirements.txt'
+                dir('python-flask-app') {
+                    echo 'Installing Python dependencies...'
+                    sh 'python --version'
+                    sh 'python -m pip install --user -r requirements.txt'
+                }
             }
         }
 
         stage('Test') {
             steps {
-                echo 'Running unit tests...'
-                sh 'python -m unittest discover -s . -p "test_*.py"'
+                dir('python-flask-app') {
+                    echo 'Running unit tests...'
+                    sh 'python -m unittest discover -s . -p "test_*.py"'
+                }
             }
         }
 
         stage('Deploy') {
             steps {
-                echo 'Preparing deployment directory...'
-                sh '''
-                    mkdir -p python-app-deploy
-                    cp app.py requirements.txt python-app-deploy/
-                    cp test_app.py python-app-deploy/
-                '''
+                dir('python-flask-app') {
+                    echo 'Preparing deployment directory...'
+                    sh '''
+                        mkdir -p python-app-deploy
+                        cp app.py requirements.txt test_app.py python-app-deploy/
+                    '''
+                }
             }
         }
 
         stage('Run Application') {
             steps {
-                echo 'Checking deployed application...'
-                sh '''
-                    cd python-app-deploy
-                    python -m unittest discover -s . -p "test_*.py"
-                '''
+                dir('python-flask-app') {
+                    echo 'Testing the deployed application...'
+                    sh '''
+                        cd python-app-deploy
+                        python -m pip install --user -r requirements.txt
+                        python -m unittest discover -s . -p "test_*.py"
+                    '''
+                }
             }
         }
 
         stage('Test Application') {
             steps {
-                echo 'Verifying deployed application response...'
-                sh '''
-                    cd python-app-deploy
-                    python -c "from app import app; r=app.test_client().get('/'); assert r.status_code == 200; print(r.data.decode())"
-                '''
+                dir('python-flask-app/python-app-deploy') {
+                    echo 'Verifying the application response...'
+                    sh '''
+                        python -c "from app import app; r=app.test_client().get('/'); assert r.status_code == 200; print(r.data.decode())"
+                    '''
+                }
             }
         }
     }
